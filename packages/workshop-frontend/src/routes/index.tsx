@@ -1,8 +1,8 @@
-import { classifyRpcError, logRpcFailure } from "../rpcErrors";
+import { classifyRpcError, logRpcFailure, rpcFailureDescription } from "../rpcErrors";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useKumoToastManager } from "@cloudflare/kumo";
-import { ChatInput } from "../ChatInterface";
+import { ChatComposer } from "../features/chat/composer/ChatComposer";
 import MeshBackground from "../components/MeshBackground";
 import HomeTaskSuggestions from "../components/AppShell/HomeTaskSuggestions";
 import { useAuthenticatedApi } from "../AuthContext";
@@ -21,14 +21,22 @@ import {
 } from "../modelSelection";
 import { useDocumentTitle } from "../useDocumentTitle";
 import { homePromptFromSearch } from "../homePrompt";
-import { composerDraftStorageKey } from "../composerDraft";
+import { composerDraftStorageKey } from "../features/chat/composer/draft/composerDraft";
 
-type HomeSearch = { prompt?: string };
+type HomeSearch = {
+  prompt?: string;
+  cfos_native_state?: string;
+  cfos_native_key?: string;
+};
 
 export const Route = createFileRoute("/")({
   component: HomePage,
   validateSearch: (search: Record<string, unknown>): HomeSearch => ({
     prompt: homePromptFromSearch(search.prompt),
+    cfos_native_state: typeof search.cfos_native_state === "string"
+      ? search.cfos_native_state : undefined,
+    cfos_native_key: typeof search.cfos_native_key === "string"
+      ? search.cfos_native_key : undefined,
   }),
 });
 
@@ -130,7 +138,11 @@ export function HomePageContent({ prompt }: HomeSearch) {
           provisionalOverseerRef.current = null;
         }
         if (!transient) {
-          toasts.add({ title: "Failed to create workspace", variant: "error" });
+          toasts.add({
+            title: "Failed to create workspace",
+            description: rpcFailureDescription(err),
+            variant: "error",
+          });
         }
         throw err;
       }
@@ -181,13 +193,13 @@ export function HomePageContent({ prompt }: HomeSearch) {
         </header>
 
         {/* Composer */}
-        <ChatInput
+        <ChatComposer
           createCapsuleGatekeeper={createCapsuleGatekeeper}
           getOverseer={getOverseer}
           onSend={handleSend}
           isAgentActive={false}
           models={models}
-          selectedModel={selectedModel}
+          selectedModel={selectedModel === null ? null : { id: selectedModel }}
           onModelChange={handleModelChange}
           newChat
           offerFormats
